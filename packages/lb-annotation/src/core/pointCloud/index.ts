@@ -37,6 +37,7 @@ import { PointCloudSegmentOperation } from './segmentation';
 import PointCloudStore from './store';
 import PointCloudRender from './render';
 import EventListener from '../toolOperation/eventListener';
+import PointsMaterial from './material/PointsMaterial';
 
 interface IOrthographicCamera {
   left: number;
@@ -993,7 +994,9 @@ export class PointCloud extends EventListener {
      * 1. Filter the invisible points in vertexShader.
      * 2. If the color is not found, set Color to (255, 255, 255)
      */
-    const material = new THREE.ShaderMaterial(this.initShaderMaterial());
+    const material = new PointsMaterial();
+
+    // const material = new THREE.ShaderMaterial(this.initShaderMaterial());
 
     if (radius) {
       // @ts-ignore
@@ -2162,9 +2165,7 @@ export class PointCloud extends EventListener {
    * @returns
    */
   public updatePointSize = ({ zoomIn, customSize }: { zoomIn?: boolean; customSize?: number }) => {
-    const points = this.scene.getObjectByName(this.pointCloudObjectName) as
-      | { material: THREE.ShaderMaterial }
-      | undefined;
+    const points = this.scene.getObjectByName(this.pointCloudObjectName) as { material: PointsMaterial } | undefined;
 
     if (!points) {
       return;
