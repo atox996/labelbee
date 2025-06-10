@@ -681,69 +681,72 @@ export const PointCloudProvider: React.FC<PropsWithChildren<{}>> = ({ children }
       pointCloudList?: IPointCloudBox[],
       newHighlight2DDataList?: IHighlight2DData[],
     ) => {
-      if (!mainViewInstance) {
-        return;
-      }
+      mainViewInstance?.updateColor(pointCloudList)
+      topViewInstance?.pointCloudInstance?.updateColor(pointCloudList)
 
-      const points = mainViewInstance.pointCloudObject;
+      // if (!mainViewInstance) {
+      //   return;
+      // }
 
-      if (!points) {
-        return;
-      }
+      // const points = mainViewInstance.pointCloudObject;
 
-      let modifiedBoxIds: string[] = [];
-      let resetAreas: ICoordinate[][] = [];
-      try {
-        if (pointCloudList && history.record.length) {
-          const { record, recordIndex } = history;
+      // if (!points) {
+      //   return;
+      // }
 
-          let latestRecordIndex = recordIndex;
+      // let modifiedBoxIds: string[] = [];
+      // let resetAreas: ICoordinate[][] = [];
+      // try {
+      //   if (pointCloudList && history.record.length) {
+      //     const { record, recordIndex } = history;
 
-          // The history of these triggers was updated before highlighting, so take the previous index
-          // 0. SingleToggleValid SingleRotate
-          // The case of Single is more special.
-          // 1. The newly added history update is after rendering, so the last subscript is taken
-          // 2. Modify is before rendering and takes the second to last subscript
-          if (
-            recordIndex > 0 &&
-            (syncByTrigger === EPointCloudBoxRenderTrigger.SingleToggleValid || // SingleToggleValid (mark 0)
-              syncByTrigger === EPointCloudBoxRenderTrigger.SingleRotate || // SingleRotate (mark 0)
-              (syncByTrigger === EPointCloudBoxRenderTrigger.Single &&
-                pointCloudList.length === record[recordIndex]?.pointCloudBoxList.length)) // Single + Modify, exclude Single + Add (mark 2)
-          ) {
-            latestRecordIndex = recordIndex - 1;
-          }
+      //     let latestRecordIndex = recordIndex;
 
-          let latestRecord = record[latestRecordIndex]?.pointCloudBoxList;
-          const calcRes = calcResetAreasAndBoxIds(syncByTrigger, pointCloudList, latestRecord);
+      //     // The history of these triggers was updated before highlighting, so take the previous index
+      //     // 0. SingleToggleValid SingleRotate
+      //     // The case of Single is more special.
+      //     // 1. The newly added history update is after rendering, so the last subscript is taken
+      //     // 2. Modify is before rendering and takes the second to last subscript
+      //     if (
+      //       recordIndex > 0 &&
+      //       (syncByTrigger === EPointCloudBoxRenderTrigger.SingleToggleValid || // SingleToggleValid (mark 0)
+      //         syncByTrigger === EPointCloudBoxRenderTrigger.SingleRotate || // SingleRotate (mark 0)
+      //         (syncByTrigger === EPointCloudBoxRenderTrigger.Single &&
+      //           pointCloudList.length === record[recordIndex]?.pointCloudBoxList.length)) // Single + Modify, exclude Single + Add (mark 2)
+      //     ) {
+      //       latestRecordIndex = recordIndex - 1;
+      //     }
 
-          modifiedBoxIds = calcRes.modifiedBoxIds;
-          resetAreas = calcRes.resetAreas;
-        }
-      } catch (error) {
-        console.error('call calcResetAreasAndBoxIds error', error);
-      }
+      //     let latestRecord = record[latestRecordIndex]?.pointCloudBoxList;
+      //     const calcRes = calcResetAreasAndBoxIds(syncByTrigger, pointCloudList, latestRecord);
 
-      try {
-        const highlightIndex = await mainViewInstance.getHighlightIndexByMappingImgList({
-          mappingImgList: newHighlight2DDataList ?? highlight2DDataList, // MappingImgList can be defined by through external param.
-          points: points.geometry.attributes.position.array,
-        });
+      //     modifiedBoxIds = calcRes.modifiedBoxIds;
+      //     resetAreas = calcRes.resetAreas;
+      //   }
+      // } catch (error) {
+      //   console.error('call calcResetAreasAndBoxIds error', error);
+      // }
 
-        const colorInfo = await mainViewInstance?.highlightOriginPointCloud(
-          pointCloudList,
-          highlightIndex,
-          {
-            modifiedBoxIds,
-            resetAreas,
-          },
-        );
-        const { color, currentPCDSrc } = colorInfo ?? {};
-        color && topViewInstance?.pointCloudInstance?.updateColor(color, currentPCDSrc);
-        return color;
-      } catch (error) {
-        console.error('call highlightOriginPointCloud error', error);
-      }
+      // try {
+      //   const highlightIndex = await mainViewInstance.getHighlightIndexByMappingImgList({
+      //     mappingImgList: newHighlight2DDataList ?? highlight2DDataList, // MappingImgList can be defined by through external param.
+      //     points: points.geometry.attributes.position.array,
+      //   });
+
+      //   const colorInfo = await mainViewInstance?.highlightOriginPointCloud(
+      //     pointCloudList,
+      //     highlightIndex,
+      //     {
+      //       modifiedBoxIds,
+      //       resetAreas,
+      //     },
+      //   );
+      //   const { color, currentPCDSrc } = colorInfo ?? {};
+      //   color && topViewInstance?.pointCloudInstance?.updateColor(color, currentPCDSrc);
+      //   return color;
+      // } catch (error) {
+      //   console.error('call highlightOriginPointCloud error', error);
+      // }
     };
 
     const setGlobalPatternFuc = (pattern: EPointCloudPattern) => {

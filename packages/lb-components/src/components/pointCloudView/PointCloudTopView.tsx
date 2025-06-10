@@ -271,6 +271,8 @@ const PointCloudTopView: React.FC<IProps> = ({
 
     // line register
     TopView2dOperation.singleOn('dataUpdated', (updateLine: ILine[], selectedIDs: string[]) => {
+      console.log('dataUpdated');
+      
       const transferLine = _.cloneDeep(updateLine).map((i) => {
         return {
           ...i,

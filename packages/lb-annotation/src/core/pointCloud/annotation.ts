@@ -86,6 +86,7 @@ export class PointCloudAnnotation implements IPointCloudAnnotationOperation {
       isOrthographicCamera: true,
       orthographicParams: defaultOrthographic,
       view,
+      config,
     });
 
     if (pcdPath) {

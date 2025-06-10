@@ -23,8 +23,12 @@ struct BoxesItem {
   float opacity;
 };
 
-#ifdef boxes_length
-  uniform BoxesItem boxes[boxes_length];
+#ifdef boxesLength
+  uniform BoxesItem boxes[boxesLength];
+#endif
+
+#ifdef hasCameraRegion
+  uniform mat4 cameraRegionMatrix;
 #endif
 
 uniform float pointSize;
@@ -60,8 +64,16 @@ void main() {
 
   vColor = color;
 
-  #ifdef boxes_length
-    for (int i = 0; i < boxes_length; i++) {
+  #ifdef hasCameraRegion
+    vec4 posNor = cameraRegionMatrix * vec4( position, 1.0 );
+    posNor.xyz = posNor.xyz/posNor.w;
+    if(isInBox(posNor.xyz, vec3(-1.0,-1.0,-1.0),vec3(1.0,1.0,1.0))){
+      vColor = vec3(1.0,1.0,1.0);
+    }
+  #endif
+
+  #ifdef boxesLength
+    for (int i = 0; i < boxesLength; i++) {
       BoxesItem box = boxes[i];
       vec3 min = box.bbox.min;
       vec3 max = box.bbox.max;
@@ -89,19 +101,36 @@ void main() {
 
 `;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
+function uniform(target: PointsMaterial, propertyKey: string) {
+  Object.defineProperty(target, propertyKey, {
+    get() {
+      return this.getUniform(propertyKey);
+    },
+    set(value) {
+      if (value !== this.getUniform(propertyKey)) {
+        this.setUniform(propertyKey, value);
+      }
+    },
+  });
+}
+
 export default class PointsMaterial extends RawShaderMaterial {
-  @uniform declare pointSize: IUniformValue<'pointSize'>;
+  @uniform pointSize: IUniformValue<'pointSize'>;
 
-  @uniform declare opacity: IUniformValue<'opacity'>;
+  @uniform opacity: IUniformValue<'opacity'>;
 
-  @uniform declare gradient: IUniformValue<'gradient'>;
+  @uniform gradient: IUniformValue<'gradient'>;
 
-  @uniform declare boxes: IUniformValue<'boxes'>;
+  @uniform cameraRegionMatrix: IUniformValue<'cameraRegionMatrix'>;
+
+  @uniform boxes: IUniformValue<'boxes'>;
 
   uniforms: IUniforms = {
     pointSize: { value: 1.0 },
     opacity: { value: 1.0 },
     gradient: { value: [-7, 3] },
+    cameraRegionMatrix: { value: null },
     boxes: { value: [] },
   };
 
@@ -113,6 +142,7 @@ export default class PointsMaterial extends RawShaderMaterial {
     this.pointSize = parameters.pointSize ?? this.getUniform('pointSize');
     this.opacity = parameters.opacity ?? this.getUniform('opacity');
     this.gradient = parameters.gradient ?? this.getUniform('gradient');
+    this.cameraRegionMatrix = parameters.cameraRegionMatrix ?? this.getUniform('cameraRegionMatrix');
     this.boxes = parameters.boxes ?? this.getUniform('boxes');
 
     this.transparent = true;
@@ -134,24 +164,15 @@ export default class PointsMaterial extends RawShaderMaterial {
   update() {
     this.defines = {};
 
-    if (this.boxes.length) {
-      this.defines.boxesLength = this.boxes.length;
+    if (this.cameraRegionMatrix) {
+      this.defines.hasCameraRegion = true;
+    }
+
+    const boxesLength = this.boxes.length;
+    if (boxesLength) {
+      this.defines.boxesLength = boxesLength;
     }
 
     this.needsUpdate = true;
   }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
-function uniform(target: object, propertyKey: string | symbol) {
-  Object.defineProperty(target, propertyKey, {
-    get() {
-      return this.getUniform(propertyKey);
-    },
-    set(value) {
-      if (value !== this.getUniform(propertyKey)) {
-        this.setUniform(propertyKey, value);
-      }
-    },
-  });
 }

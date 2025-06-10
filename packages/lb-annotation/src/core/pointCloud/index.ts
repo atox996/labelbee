@@ -20,6 +20,7 @@ import {
   DEFAULT_SPHERE_PARAMS,
   ICalib,
   IPointCloudBoxList,
+  MatrixUtils,
 } from '@labelbee/lb-utils';
 import { BufferAttribute, OrthographicCamera, PerspectiveCamera } from 'three';
 import HighlightWorker from 'web-worker:./highlightWorker.js';
@@ -86,6 +87,66 @@ export interface IPointCloudDelegate extends IEventBus {
 
 const DEFAULT_DISTANCE = 30;
 let highlightWorker = new HighlightWorker({ type: 'module' });
+
+/**
+ * 把标定数据转成 PerspectiveCamera，适配普通和鱼眼相机
+ * @param calib 标定参数
+ * @param {{width: number;height: number;}} imageSize 图像尺寸
+ * @returns 设置好的 THREE.PerspectiveCamera
+ */
+function createCameraFromCalib(calib: ICalib, imageSize: { width: number; height: number }): THREE.PerspectiveCamera {
+  const { P, T } = calib;
+
+  // Intrinsic 参数
+  // const fx = P[0][0];
+  const fy = P[1][1];
+  // const cx = P[0][2];
+  // const cy = P[1][2];
+
+  // 计算相机垂直视场角（fov）
+  const fovYRad = 2 * Math.atan(imageSize.height / (2 * fy));
+  const fovYDeg = THREE.MathUtils.radToDeg(fovYRad);
+
+  const fov = fovYDeg;
+  const aspect = imageSize.width / imageSize.height;
+  const near = 0.01;
+  const far = 500; // 可调整
+
+  // 创建 PerspectiveCamera
+  const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+
+  // Step 1️⃣ 提取 lidarToCameraMatrix
+  const lidarToCameraMatrix4 = new THREE.Matrix4().fromArray(MatrixUtils.transferMatrix34FromKitti2Three(T));
+
+  // Step 2️⃣ 提取 R 和 T
+  const rotationMatrix = new THREE.Matrix4().copy(lidarToCameraMatrix4);
+  rotationMatrix.setPosition(0, 0, 0); // 清除 translation，保留 rotation 部分
+
+  const translation = new THREE.Vector3().setFromMatrixPosition(lidarToCameraMatrix4);
+
+  // Step 3️⃣ 设置 camera position
+  camera.position.copy(translation);
+
+  // Step 4️⃣ 设置 camera quaternion
+  const cameraQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
+
+  const adjustmentQuaternion = new THREE.Quaternion();
+
+  adjustmentQuaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+
+  // Step 6️⃣ 应用最终 quaternion
+  camera.quaternion.copy(cameraQuaternion).multiply(adjustmentQuaternion);
+
+  // Step 7️⃣ 场景 Z-up（你的场景是 Z-up）
+  camera.up.set(0, 0, 1);
+
+  // Step 8️⃣ 更新投影矩阵
+  camera.updateMatrixWorld();
+  camera.updateProjectionMatrix();
+
+  // Done
+  return camera;
+}
 
 export class PointCloud extends EventListener {
   public renderer: THREE.WebGLRenderer;
@@ -1009,6 +1070,8 @@ export class PointCloud extends EventListener {
 
     this.scene.add(points);
 
+    this.renderBoxes();
+
     this.render();
   }
 
@@ -1194,94 +1257,113 @@ export class PointCloud extends EventListener {
    */
   public async highlightOriginPointCloud(
     pointCloudBoxList?: IPointCloudBox[],
-    highlightIndex: number[] = [],
-    config: {
-      modifiedBoxIds: string[];
-      resetAreas: ICoordinate[][];
-    } = {
-      modifiedBoxIds: [],
-      resetAreas: [],
-    },
+    // highlightIndex: number[] = [],
+    // config: {
+    //   modifiedBoxIds: string[];
+    //   resetAreas: ICoordinate[][];
+    // } = {
+    //   modifiedBoxIds: [],
+    //   resetAreas: [],
+    // },
   ) {
     if (this.workerLoading) {
       return;
     }
     this.workerLoading = true;
-    const { modifiedBoxIds, resetAreas } = config;
+    // const { modifiedBoxIds, resetAreas } = config;
     const oldPointCloud = this.scene.getObjectByName(this.pointCloudObjectName) as THREE.Points;
     if (!oldPointCloud) {
       return;
     }
     this.highlightPCDSrc = this.currentPCDSrc;
 
-    return new Promise<{ color: BufferAttribute[]; currentPCDSrc: string | undefined } | undefined>(
-      (resolve, reject) => {
-        if (window.Worker) {
-          const newPointCloudBoxList = pointCloudBoxList ? [...pointCloudBoxList] : [];
-          const cuboidList = newPointCloudBoxList.map((v) => getCuboidFromPointCloudBox(v));
-          const colorList = this.getAllAttributeColor(cuboidList);
-          const position = oldPointCloud.geometry.attributes.position.array;
-          const oldColor = oldPointCloud.geometry.attributes.dimensions.array;
+    return new Promise<{ color: BufferAttribute[]; currentPCDSrc: string | undefined } | undefined>((resolve) => {
+      if (window.Worker) {
+        const newPointCloudBoxList = pointCloudBoxList ? [...pointCloudBoxList] : [];
+        const cuboidList = newPointCloudBoxList.map((v) => getCuboidFromPointCloudBox(v));
+        const colorList = this.getAllAttributeColor(cuboidList);
+        // const position = oldPointCloud.geometry.attributes.position.array;
+        // const oldColor = oldPointCloud.geometry.attributes.dimensions.array;
 
-          const params = {
-            cuboidList,
-            position,
-            color: oldColor,
-            colorList,
-            highlightIndex,
-            modifiedBoxIds,
-            resetAreas,
+        // const params = {
+        //   cuboidList,
+        //   position,
+        //   color: oldColor,
+        //   colorList,
+        //   highlightIndex,
+        //   modifiedBoxIds,
+        //   resetAreas,
+        // };
+        const boxes = newPointCloudBoxList.map((box) => {
+          const { center, width, height, depth, rotation } = box;
+          const halfWidth = width / 2;
+          const halfHeight = height / 2;
+          const halfDepth = depth / 2;
+          const { rgba } = colorList[box.attribute];
+          const color = new THREE.Color(rgba[0] / 255, rgba[1] / 255, rgba[2] / 255);
+          return {
+            bbox: new THREE.Box3(
+              new THREE.Vector3(-halfWidth, -halfHeight, -halfDepth),
+              new THREE.Vector3(halfWidth, halfHeight, halfDepth),
+            ),
+            matrix: new THREE.Matrix4().makeRotationZ(rotation).setPosition(center.x, center.y, center.z).invert(),
+            color,
+            opacity: 1,
           };
-          this.handleWebworker(params)
-            .then((res: any) => {
-              const { color } = res;
-              /**
-               * Need to return;
-               *
-               * 1. Not exist highlightPCDSrc
-               * 2. HighlightPCDSrc is not same with currentPCDSrc.
-               * 3. If the calculate color is not same with origin Points length.
-               */
-              if (
-                !this.highlightPCDSrc ||
-                this.highlightPCDSrc !== this.currentPCDSrc ||
-                oldPointCloud.geometry.attributes.position.array.length !== color.length
-              ) {
-                reject(new Error('Error Path'));
-                return;
-              }
-              let combinedColor = color;
-              if (modifiedBoxIds.length || resetAreas.length) {
-                combinedColor = color.map((item: any, index: number) => {
-                  if (item === -1) {
-                    // A magic number is needed here to represent the color used in the last rendering
-                    // involved by packages/lb-annotation/src/core/pointCloud/highlightWorker.js REMAINED_COLOR_FLAG
-                    return oldColor[index];
-                  }
-                  return item;
-                });
-              }
-              const colorAttribute = new THREE.BufferAttribute(combinedColor, 3);
+        });
+        (oldPointCloud.material as PointsMaterial).boxes = boxes;
+        resolve(undefined);
+        this.render();
+        this.workerLoading = false;
+        // this.handleWebworker(params)
+        //   .then((res: any) => {
+        //     const { color } = res;
+        //     /**
+        //      * Need to return;
+        //      *
+        //      * 1. Not exist highlightPCDSrc
+        //      * 2. HighlightPCDSrc is not same with currentPCDSrc.
+        //      * 3. If the calculate color is not same with origin Points length.
+        //      */
+        //     if (
+        //       !this.highlightPCDSrc ||
+        //       this.highlightPCDSrc !== this.currentPCDSrc ||
+        //       oldPointCloud.geometry.attributes.position.array.length !== color.length
+        //     ) {
+        //       reject(new Error('Error Path'));
+        //       return;
+        //     }
+        //     let combinedColor = color;
+        //     if (modifiedBoxIds.length || resetAreas.length) {
+        //       combinedColor = color.map((item: any, index: number) => {
+        //         if (item === -1) {
+        //           // A magic number is needed here to represent the color used in the last rendering
+        //           // involved by packages/lb-annotation/src/core/pointCloud/highlightWorker.js REMAINED_COLOR_FLAG
+        //           return oldColor[index];
+        //         }
+        //         return item;
+        //       });
+        //     }
+        //     const colorAttribute = new THREE.BufferAttribute(combinedColor, 3);
 
-              // Clear
-              this.highlightPCDSrc = undefined;
+        //     // Clear
+        //     this.highlightPCDSrc = undefined;
 
-              colorAttribute.needsUpdate = true;
+        //     colorAttribute.needsUpdate = true;
 
-              oldPointCloud.geometry.setAttribute('dimensions', colorAttribute);
-              oldPointCloud.geometry.attributes.dimensions.needsUpdate = true;
-              const result = { color: combinedColor, view: this.view, currentPCDSrc: this.currentPCDSrc };
-              resolve(result);
-              this.workerLoading = false;
-              this.render();
-            })
-            .catch((e) => {
-              this.workerLoading = false;
-              reject(e);
-            });
-        }
-      },
-    );
+        //     oldPointCloud.geometry.setAttribute('dimensions', colorAttribute);
+        //     oldPointCloud.geometry.attributes.dimensions.needsUpdate = true;
+        //     const result = { color: combinedColor, view: this.view, currentPCDSrc: this.currentPCDSrc };
+        //     resolve(result);
+        //     this.workerLoading = false;
+        //     this.render();
+        //   })
+        //   .catch((e) => {
+        //     this.workerLoading = false;
+        //     reject(e);
+        //   });
+      }
+    });
   }
 
   /**
@@ -1352,16 +1434,63 @@ export class PointCloud extends EventListener {
     this.render();
   }
 
-  public updateColor(color: any[], src = '') {
-    if (src && src !== this.currentPCDSrc) {
-      return;
+  pointCloudBoxList: IPointCloudBox[] = [];
+
+  public updateColor(pointCloudList: IPointCloudBox[] = []) {
+    // if (src && src !== this.currentPCDSrc) {
+    //   return;
+    // }
+    this.pointCloudBoxList = pointCloudList;
+    this.renderBoxes();
+  }
+
+  renderBoxes() {
+    const oldPointCloud = this.scene.getObjectByName(this.pointCloudObjectName) as THREE.Points;
+    if (oldPointCloud && this.pointCloudBoxList.length) {
+      const cuboidList = this.pointCloudBoxList.map((v) => getCuboidFromPointCloudBox(v));
+      const colorList = this.getAllAttributeColor(cuboidList);
+      const boxes = this.pointCloudBoxList.map((box) => {
+        const { center, width, height, depth, rotation } = box;
+        const halfWidth = width / 2;
+        const halfHeight = height / 2;
+        const halfDepth = depth / 2;
+        const { rgba } = colorList[box.attribute];
+        const color = new THREE.Color(rgba[0] / 255, rgba[1] / 255, rgba[2] / 255);
+        return {
+          bbox: new THREE.Box3(
+            new THREE.Vector3(-halfWidth, -halfHeight, -halfDepth),
+            new THREE.Vector3(halfWidth, halfHeight, halfDepth),
+          ),
+          matrix: new THREE.Matrix4().makeRotationZ(rotation).setPosition(center.x, center.y, center.z).invert(),
+          color,
+          opacity: 1,
+        };
+      });
+      (oldPointCloud.material as PointsMaterial).boxes = boxes;
+      // const colorAttribute = new THREE.BufferAttribute(color, 3);
+      // oldPointCloud.geometry.setAttribute('dimensions', colorAttribute);
+      // oldPointCloud.geometry.attributes.dimensions.needsUpdate = true;
     }
+    this.render();
+  }
+
+  cameraHelper: THREE.CameraHelper | null = null;
+
+  public updateCameraRegionMatrix(calib?: ICalib, imageSize?: { width: number; height: number }) {
     const oldPointCloud = this.scene.getObjectByName(this.pointCloudObjectName) as THREE.Points;
     if (oldPointCloud) {
-      const colorAttribute = new THREE.BufferAttribute(color, 3);
-      oldPointCloud.geometry.setAttribute('dimensions', colorAttribute);
-      oldPointCloud.geometry.attributes.dimensions.needsUpdate = true;
-
+      if (!calib || !imageSize) {
+        (oldPointCloud.material as PointsMaterial).cameraRegionMatrix = null;
+        if (this.cameraHelper) {
+          this.scene.remove(this.cameraHelper);
+        }
+      } else {
+        const camera = createCameraFromCalib(calib, imageSize);
+        this.cameraHelper = new THREE.CameraHelper(camera);
+        this.scene.add(this.cameraHelper);
+        const regionMatrix = new THREE.Matrix4().multiply(camera.projectionMatrix).multiply(camera.matrixWorldInverse);
+        (oldPointCloud.material as PointsMaterial).cameraRegionMatrix = regionMatrix;
+      }
       this.render();
     }
   }

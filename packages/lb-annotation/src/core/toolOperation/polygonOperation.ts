@@ -1430,6 +1430,7 @@ class PolygonOperation extends BasicToolOperation {
       if (super.onMouseMove(e, false) || this.forbidMouseOperation || !this.imgInfo) {
         return;
       }
+      this.emitUpdatePolygonByDrag();
 
       if (this.drawingPointList.length > 0) {
         // No hover operation is required during editing
@@ -1441,6 +1442,7 @@ class PolygonOperation extends BasicToolOperation {
 
       if (this.selectedIDs.length > 0 && this.dragInfo) {
         this.onDragMove(e);
+
       }
 
       this.render(trigger);

@@ -23,6 +23,10 @@ export type IUniforms = {
    */
   gradient: IUniform<Vector2Tuple>;
   /**
+   * 相机区域矩阵
+   */
+  cameraRegionMatrix: IUniform<Matrix4 | null>;
+  /**
    * 3D框
    */
   boxes: IUniform<IBox[]>;
@@ -30,6 +34,7 @@ export type IUniforms = {
 
 export interface IDefines {
   boxesLength?: number;
+  hasCameraRegion?: boolean;
 }
 
 export type IUniformKeys = keyof IUniforms;

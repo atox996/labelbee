@@ -8,6 +8,7 @@ import { useCallback, useContext } from 'react';
 import { PointCloudContext } from '../PointCloudContext';
 import { IAnnotationStateProps } from '../../../store/annotation/map';
 import { ICalib } from '@labelbee/lb-utils';
+import { ImgUtils } from '@labelbee/lb-annotation';
 
 const useHighlight = ({ currentData }: Partial<IAnnotationStateProps>) => {
   const {
@@ -27,40 +28,51 @@ const useHighlight = ({ currentData }: Partial<IAnnotationStateProps>) => {
     // Update highlight Status.
     if (highlight2DDataList.find((v) => v.url === url)) {
       newHighlightList = highlight2DDataList.filter((v) => v.url !== url);
+      mainViewInstance?.updateCameraRegionMatrix();
+      topViewInstance?.pointCloudInstance.updateCameraRegionMatrix();
     } else {
       newHighlightList.push({
         url,
         fallbackUrl,
         calib,
       });
+      const imgNode = await ImgUtils.load(url);
+      const imageSize = {
+        width: imgNode.width,
+        height: imgNode.height,
+      }
+      mainViewInstance?.updateCameraRegionMatrix(calib, imageSize);
+      topViewInstance?.pointCloudInstance.updateCameraRegionMatrix(calib, imageSize);
     }
+    console.log('calib', calib);
 
     setHighlight2DDataList(newHighlightList);
 
-    if (!mainViewInstance || mappingImgList?.length === 0) {
-      return;
-    }
+    // if (!mainViewInstance || mappingImgList?.length === 0) {
+    //   return;
+    // }
 
-    const points = mainViewInstance.pointCloudObject;
-    if (!points) {
-      return;
-    }
+    // const points = mainViewInstance.pointCloudObject;
+    // if (!points) {
+    //   return;
+    // }
 
-    const highlightIndex = await mainViewInstance.getHighlightIndexByMappingImgList({
-      mappingImgList: newHighlightList,
-      points: points.geometry.attributes.position.array,
-    });
+    // const highlightIndex = await mainViewInstance.getHighlightIndexByMappingImgList({
+    //   mappingImgList: newHighlightList,
+    //   points: points.geometry.attributes.position.array,
+    // });
 
-    try {
-      const colorInfo = await mainViewInstance.highlightOriginPointCloud(
-        pointCloudBoxList,
-        highlightIndex,
-      );
-      const { color } = colorInfo ?? {};
-      color && topViewInstance?.pointCloudInstance?.updateColor(color);
-    } catch (error) {
-      console.error('toggle2dVisible highlightOriginPointCloud error:', error);
-    }
+    // try {
+    //   const colorInfo = await mainViewInstance.highlightOriginPointCloud(
+    //     pointCloudBoxList,
+    //     highlightIndex,
+    //   );
+    //   const { color } = colorInfo ?? {};
+    //   // color && topViewInstance?.pointCloudInstance?.updateColor(color);
+    //   topViewInstance?.pointCloudInstance?.updateColor(pointCloudBoxList)
+    // } catch (error) {
+    //   console.error('toggle2dVisible highlightOriginPointCloud error:', error);
+    // }
   };
 
   const isHighlightVisible = useCallback(
