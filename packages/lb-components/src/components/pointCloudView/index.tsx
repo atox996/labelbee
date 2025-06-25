@@ -13,10 +13,17 @@
 
 import { getClassName } from '@/utils/dom';
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import PointCloud3DView from './PointCloud3DView';
-import PointCloudBackView from './PointCloudBackView';
-import PointCloudTopView from './PointCloudTopView';
-import PointCloudSideView from './PointCloudSideView';
+// import PointCloud3DView from './PointCloud3DView';
+// import PointCloudBackView from './PointCloudBackView';
+// import PointCloudTopView from './PointCloudTopView';
+// import PointCloudSideView from './PointCloudSideView';
+// import SideAndBackOverView from './components/sideAndBackOverView';
+import PointCloud3DView from './newComponents/PointCloud3DView';
+import PointCloudBackView from './newComponents/PointCloudBackView';
+import PointCloudTopView from './newComponents/PointCloudTopView';
+import PointCloudSideView from './newComponents/PointCloudSideView';
+import SideAndBackOverView from './newComponents/SideAndBackOverView';
+
 import PointCloud2DView from './PointCloud2DView';
 import PointCloudListener from './PointCloudListener';
 import PointCloudSegmentListener from './PointCloudSegmentListener';
@@ -32,15 +39,21 @@ import {
 } from '@/views/MainView/toolFooter/AnnotatedAttributes';
 import { DrawLayerSlot } from '@/types/main';
 import { PointCloudContext } from './PointCloudContext';
-import { EPointCloudPattern, PointCloudUtils } from '@labelbee/lb-utils';
+import {
+  EPointCloudPattern,
+  IPointCloudBox,
+  PointCloudUtils,
+  toolStyleConverter,
+} from '@labelbee/lb-utils';
 import { useCustomToolInstance } from '@/hooks/annotation';
 import { jsonParser } from '@/utils';
 import { a2MapStateToProps, IA2MapStateProps } from '@/store/annotation/map';
 import classNames from 'classnames';
-import SideAndBackOverView from './components/sideAndBackOverView';
 import { SetLoadPCDFileLoading } from '@/store/annotation/actionCreators';
 import DynamicResizer from '@/components/DynamicResizer';
 import { IBatchSetValid } from '@/views/MainView/sidebar/GeneralOperation';
+
+import { createBox3D } from '@labelbee/lb-annotation';
 
 interface IProps extends IA2MapStateProps {
   drawLayerSlot?: DrawLayerSlot;
@@ -66,7 +79,14 @@ const PointCloudView: React.FC<IProps> = (props) => {
     setBatchSetValid,
   } = props;
   const ptCtx = useContext(PointCloudContext);
-  const { globalPattern, setGlobalPattern, selectedIDs, isLargeStatus, setIsLargeStatus } = ptCtx;
+  const {
+    shareScene,
+    globalPattern,
+    setGlobalPattern,
+    selectedIDs,
+    isLargeStatus,
+    setIsLargeStatus,
+  } = ptCtx;
   const dispatch = useDispatch();
   const rightRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -107,7 +127,46 @@ const PointCloudView: React.FC<IProps> = (props) => {
       ptCtx.setPointCloudSphereList(sphereParamsList);
       ptCtx.setRectList(rectList);
       ptCtx.setSegmentation(segmentation);
+
+      if (currentData.url) {
+        shareScene.loadPointCloud(currentData.url);
+        const boxes = (boxParamsList as IPointCloudBox[]).map((box) => {
+          const { center, width, height, depth, rotation } = box;
+          const color = { r: 0, g: 0, b: 0 };
+          const { rgba } = toolStyleConverter.getColorFromConfig(
+            box,
+            { ...config, attributeConfigurable: true },
+            {},
+          );
+          if (rgba?.length === 4) {
+            color.r = Number(rgba[0]) / 255;
+            color.g = Number(rgba[1]) / 255;
+            color.b = Number(rgba[2]) / 255;
+          }
+          return createBox3D(
+            center,
+            {
+              x: width,
+              y: height,
+              z: depth,
+            },
+            {
+              x: 0,
+              y: 0,
+              z: rotation,
+            },
+            color,
+          );
+        });
+        shareScene.addObject(...boxes);
+        shareScene.views.forEach((view) => {
+          view.focus(shareScene.originHelper);
+        });
+      }
     }
+    return () => {
+      shareScene.clearData();
+    };
   }, [imgIndex]);
 
   useEffect(() => {

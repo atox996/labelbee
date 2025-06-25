@@ -24,6 +24,7 @@ import {
   ActionsHistory,
   EToolName,
   uuid,
+  ShareScene,
 } from '@labelbee/lb-annotation';
 import { useDispatch } from '@/store/ctx';
 import { ChangeSave } from '@/store/annotation/actionCreators';
@@ -39,6 +40,8 @@ import useWindowKeydownListener, {
 } from './hooks/useWindowKeydownListener';
 
 interface IPointCloudContextInstances {
+  shareScene: ShareScene;
+
   topViewInstance?: PointCloudAnnotation;
   sideViewInstance?: PointCloudAnnotation;
   backViewInstance?: PointCloudAnnotation;
@@ -187,7 +190,10 @@ const pickRectObject = (rect: IPointCloud2DRectOperationViewRect) => {
   return _.pick(rect, ['id', 'attribute', 'width', 'height', 'x', 'y', 'imageName']);
 };
 
+const shareScene = new ShareScene();
+
 export const PointCloudContext = React.createContext<IPointCloudContext>({
+  shareScene,
   rectList: [],
   pointCloudBoxList: [],
   pointCloudSphereList: [],
@@ -759,6 +765,7 @@ export const PointCloudProvider: React.FC<PropsWithChildren<{}>> = ({ children }
     };
 
     return {
+      shareScene,
       selectedID,
       pointCloudBoxList,
       pointCloudSphereList,

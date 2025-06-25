@@ -5,7 +5,7 @@
     "outDir": "./lib",
     "jsx": "react",
     "strict": true,
-    "lib": ["es6", "DOM", "es2017"],
+    "lib": ["es6", "DOM", "es2017", "ESNext"],
     "baseUrl": "./",
     "allowJs": true,
     "noImplicitThis": false,
@@ -14,6 +14,7 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "downlevelIteration": true,
+    "experimentalDecorators": true,
     "paths": {
       "@/*": ["src/*"]
     }

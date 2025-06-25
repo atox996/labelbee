@@ -4,6 +4,7 @@ import svg from 'rollup-plugin-svg';
 import path from 'path';
 import alias from '@rollup/plugin-alias';
 import webWorkerLoader from 'rollup-plugin-web-worker-loader';
+import glslify from 'rollup-plugin-glslify';
 
 const projectRootDir = path.resolve(__dirname);
 const customResolver = resolve({
@@ -41,6 +42,7 @@ export default {
         '.js': 'jsx',
       },
     }),
+    glslify(),
   ],
   output: [
     {
