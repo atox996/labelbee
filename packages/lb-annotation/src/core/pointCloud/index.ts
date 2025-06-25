@@ -279,7 +279,7 @@ export class PointCloud extends EventListener {
     });
   }
 
-  private updateMaterialColor(child: THREE.Object3D<THREE.Event>, color: THREE.ColorRepresentation) {
+  private updateMaterialColor(child: THREE.Object3D, color: THREE.ColorRepresentation) {
     if (child instanceof THREE.BoxHelper) {
       (child.material as THREE.LineBasicMaterial).color.set(color);
     } else if (child instanceof THREE.Sprite) {
@@ -457,16 +457,16 @@ export class PointCloud extends EventListener {
     if (this.camera.type !== 'OrthographicCamera') {
       return;
     }
-
+    const camera = this.camera as OrthographicCamera;
     const { left, right, top, bottom, near, far } = orthographicParams;
 
-    this.camera.left = left;
-    this.camera.right = right;
-    this.camera.top = top;
-    this.camera.bottom = bottom;
-    this.camera.near = near;
-    this.camera.far = far;
-    this.camera.updateProjectionMatrix();
+    camera.left = left;
+    camera.right = right;
+    camera.top = top;
+    camera.bottom = bottom;
+    camera.near = near;
+    camera.far = far;
+    camera.updateProjectionMatrix();
   }
 
   /**
@@ -477,11 +477,12 @@ export class PointCloud extends EventListener {
     if (this.camera.type !== 'PerspectiveCamera') {
       return;
     }
-    this.camera.fov = 30;
-    this.camera.aspect = this.containerWidth / this.containerHeight;
-    this.camera.near = 1;
-    this.camera.far = 1000;
-    this.camera.updateProjectionMatrix();
+    const camera = this.camera as PerspectiveCamera;
+    camera.fov = 30;
+    camera.aspect = this.containerWidth / this.containerHeight;
+    camera.near = 1;
+    camera.far = 1000;
+    camera.updateProjectionMatrix();
   }
 
   public initCamera() {
@@ -1355,7 +1356,7 @@ export class PointCloud extends EventListener {
     }
     const oldPointCloud = this.scene.getObjectByName(this.pointCloudObjectName) as THREE.Points;
     if (oldPointCloud) {
-      const colorAttribute = new THREE.BufferAttribute(color, 3);
+      const colorAttribute = new THREE.BufferAttribute(color as unknown as THREE.TypedArray, 3);
       oldPointCloud.geometry.setAttribute('dimensions', colorAttribute);
       oldPointCloud.geometry.attributes.dimensions.needsUpdate = true;
 
