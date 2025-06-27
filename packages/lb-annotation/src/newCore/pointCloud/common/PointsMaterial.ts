@@ -1,12 +1,13 @@
-import { DataTexture, FloatType, LinearFilter, RawShaderMaterial, RGBFormat } from 'three';
+import { RawShaderMaterial, Vector2 } from 'three';
 
 import fragmentShader from './shaders/points.fs';
 import vertexShader from './shaders/points.vs';
-import { createLegacyJetTextureData } from '../utils';
+import { createLegacyJetTextureData, generateLegacyJetTextureData } from '../utils';
 
 interface IDefines {
   USE_COLOR?: boolean;
-  USE_JET_TEXTURE?: boolean;
+  USE_GRADIENT_TEXTURE?: boolean;
+  USE_HIGHLIGHT_BOX?: boolean;
 }
 
 function makeUniform<T extends keyof UniformValueMap>(type: T, value: UniformValueMap[T]) {
@@ -52,14 +53,6 @@ export function watchUniforms(execute: (ctx: PointsMaterial) => void) {
   };
 }
 
-// const COLOR_STOPS = [
-//   new Color(1, 0, 0), // 红
-//   new Color(1, 1, 0), // 黄
-//   new Color(0, 1, 0), // 绿
-//   new Color(0, 1, 1), // 青
-//   new Color(0, 0, 1), // 蓝
-// ];
-
 export default class PointsMaterial extends RawShaderMaterial {
   @watchUniforms((ctx) => ctx.update()) declare uniforms;
 
@@ -74,56 +67,56 @@ export default class PointsMaterial extends RawShaderMaterial {
 
     this.uniforms = {
       /** 点大小 */
-      size: makeUniform('c', 1.0),
+      size: makeUniform('f', 1.0),
       /** 亮度 */
-      brightness: makeUniform('c', 1.0),
+      brightness: makeUniform('f', 1.0),
       /** 透明度 */
-      opacity: makeUniform('c', 1.0),
+      opacity: makeUniform('f', 1.0),
       /** 纯色 */
       color: makeNullableUniform('v3', null),
-      /** jet渐变纹理 */
-      jetTexture: makeNullableUniform('texture', null),
-      jetRange: makeNullableUniform('v2', [-7, 3]),
+      /** 渐变纹理: 优先级高于color */
+      gradientTexture: makeNullableUniform('t', null),
+      gradientRange: makeNullableUniform('v2', new Vector2(-7, 3)),
+      /** 高亮盒子 */
+      highlightBox: makeNullableUniform('highlightBox', null),
     };
 
-    // const textureData = generateJetTextureData(COLOR_STOPS, 'linear');
-    const textureData = createLegacyJetTextureData();
-    this.setJetTexture(textureData);
+    // 默认使用渐变纹理
+    // const textureData = generateGradientTextureData();
+    const textureData = generateLegacyJetTextureData();
+    this.setGradientTexture(textureData);
   }
 
-  setJetTexture(data: Float32Array | null) {
+  setGradientTexture(data: Float32Array | null) {
+    const oldTexture = this.uniforms.gradientTexture.value;
     if (data === null) {
-      this.uniforms.jetTexture.value?.dispose();
-      this.uniforms.jetTexture.value = null;
+      oldTexture?.dispose();
+      this.uniforms.gradientTexture.value = null;
+    } else if (oldTexture?.image.data.length === data.length) {
+      // 复用旧 texture，只替换数据
+      oldTexture.image.data.set(data);
+      oldTexture.needsUpdate = true;
     } else {
-      const oldTexture = this.uniforms.jetTexture.value;
+      // 创建新的纹理
+      oldTexture?.dispose();
 
-      if (oldTexture?.image.data.length === data.length) {
-        // 复用旧 texture，只替换数据
-        oldTexture.image.data.set(data);
-        oldTexture.needsUpdate = true;
-      } else {
-        // 创建新的纹理
-        oldTexture?.dispose();
+      const gradientTexture = createLegacyJetTextureData(data);
 
-        const jetTexture = new DataTexture(data, data.length / 3, 1, RGBFormat, FloatType);
-        jetTexture.minFilter = LinearFilter;
-        jetTexture.magFilter = LinearFilter;
-        jetTexture.internalFormat = 'RGB32F';
-        jetTexture.unpackAlignment = 1;
-        jetTexture.needsUpdate = true;
-
-        this.uniforms.jetTexture.value = jetTexture;
-      }
+      this.uniforms.gradientTexture.value = gradientTexture;
     }
   }
 
   update() {
     this.defines = {};
-    if (this.uniforms.jetTexture.value) {
-      this.defines.USE_JET_TEXTURE = true;
+    if (this.uniforms.gradientTexture.value) {
+      this.defines.USE_GRADIENT_TEXTURE = true;
     } else if (this.uniforms.color.value) {
       this.defines.USE_COLOR = true;
     }
+    if (this.uniforms.highlightBox.value) {
+      this.defines.USE_HIGHLIGHT_BOX = true;
+    }
+
+    this.needsUpdate = true;
   }
 }

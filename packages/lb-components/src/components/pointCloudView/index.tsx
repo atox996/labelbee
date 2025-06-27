@@ -18,13 +18,15 @@ import React, { useContext, useEffect, useRef, useState } from 'react';
 // import PointCloudTopView from './PointCloudTopView';
 // import PointCloudSideView from './PointCloudSideView';
 // import SideAndBackOverView from './components/sideAndBackOverView';
+import PointCloud2DView from './PointCloud2DView';
+
 import PointCloud3DView from './newComponents/PointCloud3DView';
 import PointCloudBackView from './newComponents/PointCloudBackView';
 import PointCloudTopView from './newComponents/PointCloudTopView';
 import PointCloudSideView from './newComponents/PointCloudSideView';
 import SideAndBackOverView from './newComponents/SideAndBackOverView';
+// import PointCloud2DView from './newComponents/PointCloud2DView';
 
-import PointCloud2DView from './PointCloud2DView';
 import PointCloudListener from './PointCloudListener';
 import PointCloudSegmentListener from './PointCloudSegmentListener';
 import PointCloudSegment from './PointCloudSegment';
@@ -159,9 +161,6 @@ const PointCloudView: React.FC<IProps> = (props) => {
           );
         });
         shareScene.addObject(...boxes);
-        shareScene.views.forEach((view) => {
-          view.focus(shareScene.originHelper);
-        });
       }
     }
     return () => {

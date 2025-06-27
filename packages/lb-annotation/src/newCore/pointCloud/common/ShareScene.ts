@@ -1,5 +1,5 @@
 import { AxesHelper, Box3, Box3Helper, EventDispatcher, Group, Plane, PlaneHelper, Scene, Vector3 } from 'three';
-
+import Stats from 'three/examples/jsm/libs/stats.module.js';
 import type Viewer from '../views/Viewer';
 import type Box3D from './objects/Box3D';
 import Points, { PointsData } from './Points';
@@ -47,13 +47,24 @@ export default class ShareScene extends EventDispatcher<TEventMap> {
     this.ground = new PlaneHelper(new Plane(new Vector3(0, 0, -1), 0), 100, 0xeeeeee);
     this.ground.visible = false;
 
-    this.originHelper = new Box3Helper(new Box3(new Vector3(-100, -100, -100), new Vector3(100, 100, 100)), 0xffff00);
+    this.originHelper = new Box3Helper(new Box3(new Vector3(-20, -20, -20), new Vector3(20, 20, 20)), 0xffff00);
     this.originHelper.visible = false;
 
     const axesHelper = new AxesHelper(100);
     axesHelper.visible = false;
 
     this.scene.add(this.pointsGroup, this.annotations3D, this.ground, this.originHelper, axesHelper);
+
+    const stats = new Stats();
+    stats.dom.style.left = 'auto';
+    stats.dom.style.right = '200px';
+    stats.dom.style.top = '10px';
+    document.body.appendChild(stats.dom);
+    const frame = () => {
+      stats.update();
+      requestAnimationFrame(frame);
+    };
+    frame();
   }
 
   addObject(...objects: Box3D[]) {

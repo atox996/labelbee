@@ -16,6 +16,8 @@ export default class ImageViewer extends Viewer {
 
   imageMesh?: Mesh;
 
+  cameraHelper: CameraHelper;
+
   constructor(container: HTMLElement, shareScene: ShareScene, config: ViewerConfig) {
     super(container, shareScene, config.name);
 
@@ -23,12 +25,12 @@ export default class ImageViewer extends Viewer {
     // this.camera.layers.set(1);
     this.camera.layers.enable(1);
     this.cameraHelper = new CameraHelper(this.camera);
-    // this.cameraHelper.visible = false;
-    shareScene.scene.add(this.camera, this.cameraHelper);
+    this.cameraHelper.visible = false;
+    // shareScene.scene.add(this.cameraHelper);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableRotate = false;
-    this.controls.addEventListener('change', () => this.shareScene.render());
+    this.controls.addEventListener('change', () => this.render());
   }
 
   initEvent(): void {
@@ -40,6 +42,9 @@ export default class ImageViewer extends Viewer {
   }
 
   focus(object = this.focusObject): void {
+    const action = super.getAction('OrbitControls');
+    if (action) action.focus(object?.position);
+
     this.focusObject = object;
     if (!object) return;
     // TODO: 聚焦相机到元素
@@ -48,6 +53,7 @@ export default class ImageViewer extends Viewer {
   renderFrame(): void {
     this.cameraHelper?.update();
     // TODO: 定制化渲染
-    this.renderer.render(this.shareScene.scene, this.camera);
+    const { scene } = this.shareScene;
+    this.renderer.render(scene, this.camera);
   }
 }

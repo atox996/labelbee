@@ -1,4 +1,4 @@
-import type { Vector3Like, Color } from 'three';
+import { Vector3Like, Color, DataTexture, FloatType, LinearFilter, RGBAFormat, RGBFormat } from 'three';
 import Box3D from '../common/objects/Box3D';
 
 export const createBox3D = <T extends EmptyObject = EmptyObject>(
@@ -17,16 +17,24 @@ export const createBox3D = <T extends EmptyObject = EmptyObject>(
   return box3D;
 };
 
+const COLOR_STOPS = [
+  new Color(1, 0, 0), // 红
+  new Color(1, 1, 0), // 黄
+  new Color(0, 1, 0), // 绿
+  new Color(0, 1, 1), // 青
+  new Color(0, 0, 1), // 蓝
+];
+
 /**
- * 生成 Jet 色带纹理数据 (Float32Array)
- * @param {Color[]} colorStops - 关键颜色点数组
- * @param {number[] | 'linear'} stops - 每个颜色点的位置数组 (0~1)，或 'linear' 表示均匀分布
+ * 生成渐变纹理数据 (Float32Array)
+ * @param {Color[]} colorStops - 关键颜色点数组, 默认由低到高 红 → 黄 → 绿 → 青 → 蓝
+ * @param {number[] | 'linear'} stops - 每个颜色点的位置数组 (0~1)，或 'linear' 表示均匀分布, 默认 'linear'
  * @param {number} textureSize - 输出纹理采样长度，默认256，若 colorStops 数量大于此数，则自动调整为 colorStops.length
  * @returns {Float32Array} - RGB纹理数据 (长度为 textureSize * 3)
  */
-export const generateJetTextureData = (
-  colorStops: Color[],
-  stops: number[] | 'linear',
+export const generateGradientTextureData = (
+  colorStops: Color[] = COLOR_STOPS,
+  stops: number[] | 'linear' = 'linear',
   textureSize: number = 256,
 ): Float32Array => {
   const numColors = colorStops.length;
@@ -79,10 +87,25 @@ export const generateJetTextureData = (
 };
 
 /**
+ * 创建渐变纹理 (DataTexture)
+ * @param {Float32Array} data - 渐变纹理数据
+ * @returns {DataTexture} - RGB纹理数据 (长度为 textureSize * 3)
+ */
+export function createGradientTexture(data: Float32Array): DataTexture {
+  const texture = new DataTexture(data, data.length / 3, 1, RGBFormat, FloatType);
+  texture.minFilter = texture.magFilter = LinearFilter;
+  texture.internalFormat = 'RGB32F';
+  texture.unpackAlignment = 1;
+  texture.needsUpdate = true;
+
+  return texture;
+}
+
+/**
  * 生成与旧版 createColorMapJet 对应的 Jet 颜色渐变数据，长度固定 256
  * 返回归一化的 Float32Array (RGB)
  */
-export function createLegacyJetTextureData(): Float32Array {
+export function generateLegacyJetTextureData(): Float32Array {
   const p: number[][] = [];
 
   for (let s = 0; s < 32; s++) p[s] = [128 + 4 * s, 0, 0];
@@ -102,4 +125,80 @@ export function createLegacyJetTextureData(): Float32Array {
   }
 
   return data;
+}
+
+export const createLegacyJetTextureData = (data: Float32Array) => {
+  const texture = new DataTexture(data, data.length / 3, 1, RGBFormat, FloatType);
+  texture.minFilter = texture.magFilter = LinearFilter;
+  texture.internalFormat = 'RGB32F';
+  texture.unpackAlignment = 1;
+  texture.needsUpdate = true;
+
+  return texture;
+};
+
+/**
+ * 生成Box信息纹理数据 (Float32Array)
+ * @param boxes - BoxData数组
+ * @returns RGBA纹理数据
+ */
+export function generateBoxTextureData(boxes: BoxTextureData[]) {
+  const boxCount = boxes.length;
+  if (boxCount === 0) {
+    throw new Error('generateBoxInfoTextureData: boxes array is empty');
+  }
+
+  const floatsPerBox = 28; // 原数据里每 box 占 28 float
+  const floatsPerTexel = 4; // RGBA = 4 float
+
+  const texelsPerBox = Math.ceil(floatsPerBox / floatsPerTexel); // 每box需要几个texel
+  const texWidth = texelsPerBox; // 每行宽度
+  const texHeight = boxCount; // 每行对应一个 box
+
+  const totalTexelCount = texWidth * texHeight;
+  const totalFloatCount = totalTexelCount * floatsPerTexel;
+
+  const data = new Float32Array(totalFloatCount);
+
+  boxes.forEach((boxData, i) => {
+    const baseIndex = i * texWidth * floatsPerTexel;
+
+    // bbox min/max (6 floats)
+    data[baseIndex + 0] = boxData.bbox.min.x;
+    data[baseIndex + 1] = boxData.bbox.min.y;
+    data[baseIndex + 2] = boxData.bbox.min.z;
+
+    data[baseIndex + 3] = boxData.bbox.max.x;
+    data[baseIndex + 4] = boxData.bbox.max.y;
+    data[baseIndex + 5] = boxData.bbox.max.z;
+
+    // 2个float(6,7)留空0填充
+    data[baseIndex + 6] = 0;
+    data[baseIndex + 7] = 0;
+
+    // inverseMatrix 16 floats，按列主序展开
+    const m = boxData.inverseMatrix.elements;
+    for (let j = 0; j < 16; j++) {
+      data[baseIndex + 8 + j] = m[j];
+    }
+
+    // color (3 floats)
+    data[baseIndex + 24] = boxData.color.r;
+    data[baseIndex + 25] = boxData.color.g;
+    data[baseIndex + 26] = boxData.color.b;
+
+    // opacity (1 float)
+    data[baseIndex + 27] = boxData.opacity;
+  });
+
+  return { data, width: texWidth, height: texHeight };
+}
+
+export function createBoxTexture(data: Float32Array, width: number, height: number): DataTexture {
+  const texture = new DataTexture(data, width, height, RGBAFormat, FloatType);
+  texture.minFilter = texture.magFilter = LinearFilter;
+  texture.unpackAlignment = 1;
+  texture.needsUpdate = true;
+
+  return texture;
 }

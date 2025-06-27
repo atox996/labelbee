@@ -242,7 +242,7 @@ const PointCloudTopView: React.FC<IProps> = ({
       }
       toolbar={<TopViewToolbar currentData={currentData} />}
     >
-      <div style={{ position: 'relative', flex: 1 }}>
+      <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
         <div style={{ width: '100%', height: '100%' }} ref={ref}>
           {drawLayerSlot?.(annotationPos)}
         </div>
