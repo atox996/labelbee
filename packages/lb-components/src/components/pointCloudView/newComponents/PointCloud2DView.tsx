@@ -15,8 +15,8 @@ import classNames from 'classnames';
 import EscSvg from '@/assets/annotation/common/icon_esc.svg';
 import LeftSquareOutlined from '@/assets/annotation/common/icon_left_squareOutlined.svg';
 import RightSquareOutlined from '@/assets/annotation/common/icon_right_squareOutlined.svg';
+import PointCloud2DViewWorker from 'web-worker:./2DViewWorker.ts';
 import { useLatest } from 'ahooks';
-import { IMappingImg } from '@/types/data';
 
 // TODO, It will be deleted when the exported type of lb-annotation is work.
 export interface IAnnotationDataTemporarily {
@@ -60,17 +60,17 @@ const ContainerTitle = ({
 }: {
   showEnlarge: boolean;
   isEnlargeTopView?: boolean;
-  data: IMappingImg;
+  data: IAnnotationData2dView;
   setIsEnlarge: (v: boolean) => void;
   setCurIndex: (v: number | undefined) => void;
   curIndex: number | undefined;
   index: number;
-  annotations2d: IMappingImg[];
+  annotations2d: IAnnotationData2dView[];
 }) => {
   if (isEnlargeTopView) {
     return (
       <TitleButton
-        title={data?.calib?.calName}
+        title={data?.calName}
         style={{ background: 'rgba(0, 0, 0, 0.74)', color: '#FFFFFF' }}
       />
     );
@@ -85,7 +85,7 @@ const ContainerTitle = ({
             setCurIndex(undefined);
           }}
         />
-        <span>{data?.calib?.calName}</span>
+        <span>{data?.calName}</span>
         <span style={{ marginLeft: '8px' }}>
           {curIndex + 1}/{annotations2d?.length}
         </span>
@@ -94,7 +94,7 @@ const ContainerTitle = ({
   }
   return (
     <TitleButton
-      title={data?.calib?.calName}
+      title={data?.calName}
       onClick={() => {
         setIsEnlarge(true);
         setCurIndex(index);
@@ -114,7 +114,7 @@ const PointCloud2DView = ({
   checkMode,
   measureVisible,
 }: IProps) => {
-  const [annotations2d, setAnnotations2d] = useState<IMappingImg[]>([]);
+  const [annotations2d, setAnnotations2d] = useState<IAnnotationData2dView[]>([]);
   const {
     topViewInstance,
     displayPointCloudList,
@@ -134,9 +134,43 @@ const PointCloud2DView = ({
     EventBus.emit('2d-image:enlarge', isEnlarge);
   }, []);
 
+  const worker = useRef<Worker>();
+
   useEffect(() => {
-    setAnnotations2d(currentData.mappingImgList || []);
-  }, [currentData?.mappingImgList]);
+    if (currentData?.mappingImgList && currentData?.mappingImgList?.length > 0) {
+      if (worker.current) {
+        worker.current.terminate();
+      }
+      worker.current = new PointCloud2DViewWorker() as Worker;
+      worker.current.onmessage = (e: any) => {
+        const newAnnotations2dList = e.data;
+        setAnnotations2d(newAnnotations2dList);
+        worker.current?.terminate();
+      };
+      worker.current.postMessage({
+        currentData,
+        displayPointCloudList,
+        selectedID,
+        highlightAttribute,
+        imageSizes,
+        config,
+        polygonList,
+        selectedIDs,
+      });
+      return () => {
+        worker.current?.terminate();
+      };
+    }
+  }, [
+    displayPointCloudList,
+    currentData?.mappingImgList,
+    selectedID,
+    highlightAttribute,
+    loadPCDFileLoading,
+    polygonList,
+    imageSizes,
+    selectedIDs,
+  ]);
 
   /** Keydown events only for `isEnlarge: true` scene  */
   const onKeyDown = useLatest((event: KeyboardEvent) => {
@@ -232,7 +266,7 @@ const PointCloud2DView = ({
   if (annotations2d?.length > 0) {
     return (
       <>
-        {annotations2d.map((item, index) => {
+        {annotations2d.map((item: IAnnotationData2dView, index: number) => {
           const showEnlarge = isEnlarge && index === curIndex;
           return (
             <PointCloudContainer
@@ -260,7 +294,7 @@ const PointCloud2DView = ({
               key={index}
               toolbar={PointCloud2DTitle}
             >
-              {item?.url && (
+              {item?.annotations && item?.url && (
                 <PointCloud2DSingleView
                   key={item.url}
                   currentData={currentData}
