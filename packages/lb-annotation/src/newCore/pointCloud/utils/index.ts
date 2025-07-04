@@ -1,20 +1,39 @@
-import { Vector3Like, Color, DataTexture, FloatType, LinearFilter, RGBAFormat, RGBFormat } from 'three';
-import Box3D from '../common/objects/Box3D';
+import {
+  Vector3Like,
+  Color,
+  DataTexture,
+  FloatType,
+  LinearFilter,
+  RGBFormat,
+  Quaternion,
+  Vector3,
+  Euler,
+  Raycaster,
+  Intersection,
+  Sphere,
+  Matrix4,
+  Ray,
+} from 'three';
+import { InstanceAttributes } from './InstancedMeshManagger';
 
-export const createBox3D = <T extends EmptyObject = EmptyObject>(
-  center: Vector3Like,
-  size: Vector3Like,
-  rotation: Vector3Like,
-  color: { r: number; g: number; b: number },
-  userData?: T,
-) => {
-  const box3D = new Box3D();
-  box3D.position.copy(center);
-  box3D.scale.copy(size);
-  box3D.rotation.set(rotation.x, rotation.y, rotation.z);
-  box3D.color.set(color.r, color.g, color.b);
-  box3D.userData = userData || {};
-  return box3D;
+export const createBox3D = <T extends EmptyObject = EmptyObject>(data: {
+  id: string;
+  center: Vector3Like;
+  size: Vector3Like;
+  rotation: Vector3Like;
+  color: { r: number; g: number; b: number };
+  userData?: T;
+}): InstanceAttributes<T> => {
+  const euler = new Euler(data.rotation.x, data.rotation.y, data.rotation.z);
+  const quaternion = new Quaternion().setFromEuler(euler);
+  return {
+    id: data.id,
+    position: new Vector3().copy(data.center),
+    scale: new Vector3().copy(data.size),
+    quaternion,
+    color: new Color(data.color.r, data.color.g, data.color.b),
+    userData: data.userData,
+  };
 };
 
 const COLOR_STOPS = [
@@ -137,68 +156,27 @@ export const createLegacyJetTextureData = (data: Float32Array) => {
   return texture;
 };
 
-/**
- * 生成Box信息纹理数据 (Float32Array)
- * @param boxes - BoxData数组
- * @returns RGBA纹理数据
- */
-export function generateBoxTextureData(boxes: BoxTextureData[]) {
-  const boxCount = boxes.length;
-  if (boxCount === 0) {
-    throw new Error('generateBoxInfoTextureData: boxes array is empty');
-  }
+const _reusableSphere = new Sphere();
+const _reusableMatrix4 = new Matrix4();
+const _resuableRay = new Ray();
+const _reusableVector3 = new Vector3();
+export function lineSegmentsRaycast(raycaster: Raycaster, intersects: Intersection[]) {
+  const { geometry } = this;
+  const { matrixWorld } = this;
 
-  const floatsPerBox = 28; // 原数据里每 box 占 28 float
-  const floatsPerTexel = 4; // RGBA = 4 float
+  const _sphere = _reusableSphere.copy(geometry.boundingSphere);
+  _sphere.applyMatrix4(matrixWorld);
 
-  const texelsPerBox = Math.ceil(floatsPerBox / floatsPerTexel); // 每box需要几个texel
-  const texWidth = texelsPerBox; // 每行宽度
-  const texHeight = boxCount; // 每行对应一个 box
+  if (raycaster.ray.intersectsSphere(_sphere) === false) return;
 
-  const totalTexelCount = texWidth * texHeight;
-  const totalFloatCount = totalTexelCount * floatsPerTexel;
+  const _inverseMatrix = _reusableMatrix4.copy(matrixWorld).invert();
+  const _ray = _resuableRay.copy(raycaster.ray).applyMatrix4(_inverseMatrix);
 
-  const data = new Float32Array(totalFloatCount);
+  if (geometry.boundingBox === null) geometry.computeBoundingBox();
 
-  boxes.forEach((boxData, i) => {
-    const baseIndex = i * texWidth * floatsPerTexel;
+  if (_ray.intersectsBox(geometry.boundingBox as any) === false) return;
 
-    // bbox min/max (6 floats)
-    data[baseIndex + 0] = boxData.bbox.min.x;
-    data[baseIndex + 1] = boxData.bbox.min.y;
-    data[baseIndex + 2] = boxData.bbox.min.z;
-
-    data[baseIndex + 3] = boxData.bbox.max.x;
-    data[baseIndex + 4] = boxData.bbox.max.y;
-    data[baseIndex + 5] = boxData.bbox.max.z;
-
-    // 2个float(6,7)留空0填充
-    data[baseIndex + 6] = 0;
-    data[baseIndex + 7] = 0;
-
-    // inverseMatrix 16 floats，按列主序展开
-    const m = boxData.inverseMatrix.elements;
-    for (let j = 0; j < 16; j++) {
-      data[baseIndex + 8 + j] = m[j];
-    }
-
-    // color (3 floats)
-    data[baseIndex + 24] = boxData.color.r;
-    data[baseIndex + 25] = boxData.color.g;
-    data[baseIndex + 26] = boxData.color.b;
-
-    // opacity (1 float)
-    data[baseIndex + 27] = boxData.opacity;
-  });
-
-  return { data, width: texWidth, height: texHeight };
-}
-
-export function createBoxTexture(data: Float32Array, width: number, height: number): DataTexture {
-  const texture = new DataTexture(data, width, height, RGBAFormat, FloatType);
-  texture.minFilter = texture.magFilter = LinearFilter;
-  texture.unpackAlignment = 1;
-  texture.needsUpdate = true;
-
-  return texture;
+  const pos = _reusableVector3.set(0, 0, 0).applyMatrix4(matrixWorld);
+  const distance = pos.distanceTo(raycaster.ray.origin);
+  intersects.push({ object: this, distance, point: pos });
 }

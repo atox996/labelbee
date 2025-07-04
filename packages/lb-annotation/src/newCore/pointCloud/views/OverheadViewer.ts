@@ -1,8 +1,8 @@
 import { Vector3 } from 'three';
+
+import type { ActionName } from '../actions';
 import ShareScene from '../common/ShareScene';
 import OrthographicViewer from './OrthographicViewer';
-import { ActionName } from '../actions';
-import { createTween } from '../utils/tween';
 
 interface ViewerConfig {
   /**
@@ -24,8 +24,6 @@ interface ViewerConfig {
 const _vec3a = new Vector3();
 const _vec3b = new Vector3();
 const _vec3c = new Vector3();
-
-const tween = createTween();
 
 const DEFAULT_CONFIG: Required<ViewerConfig> = {
   axis: 'z',
@@ -90,11 +88,11 @@ export default class OverheadViewer extends OrthographicViewer {
    * 聚焦到指定对象（默认为当前 focusObject）
    * 只移动相机的 x, y 位置，保持俯视角度看地面 (z=0)
    */
-  override focus(object = this.focusObject) {
-    if (!object) return;
-    this.focusObject = object;
+  override focus(instanceId = this.focusInstanceId) {
+    if (!instanceId) return;
+    this.focusInstanceId = instanceId;
 
-    object.getWorldPosition(_vec3a);
+    _vec3a.copy(this.shareScene.boxes.getWorldPosition(instanceId));
 
     const xMask = Math.abs(this.viewDirection.x);
     const yMask = Math.abs(this.viewDirection.y);
@@ -105,18 +103,15 @@ export default class OverheadViewer extends OrthographicViewer {
     _vec3c.copy(this.camera.position).multiply({ x: xMask, y: yMask, z: zMask }).add(_vec3b);
 
     const action = this.getAction('OrbitControls');
+    if (action) {
+      action.focus(_vec3b);
+    } else {
+      this.camera.lookAt(_vec3b);
+    }
 
-    tween.start({
+    this.tween({
       from: this.camera.position,
       to: _vec3c,
-      duration: 200,
-      onUpdate: (_, elapsed) => {
-        if (action) {
-          _vec3b.copy(_vec3a).multiplyScalar(elapsed);
-          action.focus(_vec3b);
-        }
-        this.render();
-      },
     });
   }
 

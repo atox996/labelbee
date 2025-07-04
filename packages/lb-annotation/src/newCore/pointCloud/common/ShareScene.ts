@@ -1,14 +1,15 @@
 import { AxesHelper, Box3, Box3Helper, EventDispatcher, Group, Plane, PlaneHelper, Scene, Vector3 } from 'three';
-import Stats from 'three/examples/jsm/libs/stats.module.js';
+
 import type Viewer from '../views/Viewer';
-import type Box3D from './objects/Box3D';
-import Points, { PointsData } from './Points';
+import Boxes from './objects/Boxes';
+import Points, { type PointsData } from './Points';
 import PointsMaterial from './PointsMaterial';
+import { InstanceAttributes } from '../utils/InstancedLineManager';
 
 interface TEventMap {
-  addObject: { objects: Box3D[] };
-  removeObject: { objects: Box3D[] };
-  select: { selection: Box3D[]; preSelection: Box3D[] };
+  addObject: { ids: string[] };
+  removeObject: { ids: string[] };
+  select: { ids: string[] };
   clearData: EmptyObject;
   pointsChange: EmptyObject;
   renderBefore: EmptyObject;
@@ -20,19 +21,17 @@ export default class ShareScene extends EventDispatcher<TEventMap> {
 
   pointsGroup: Group;
 
-  annotations3D: Group;
+  boxes: Boxes;
 
   ground: PlaneHelper;
 
-  selection: Box3D[] = [];
-
-  selectionMap = new Map<string, Box3D>();
+  selection = new Set<string>();
 
   views: Viewer[] = [];
 
   material = new PointsMaterial();
 
-  originHelper: Box3Helper;
+  private originHelper: Box3Helper;
 
   private _renderTimer = 0;
 
@@ -41,8 +40,7 @@ export default class ShareScene extends EventDispatcher<TEventMap> {
     this.scene = new Scene();
     this.pointsGroup = new Group();
     this.pointsGroup.name = 'pointsGroup';
-    this.annotations3D = new Group();
-    this.annotations3D.name = 'annotations3D';
+    this.boxes = new Boxes();
 
     this.ground = new PlaneHelper(new Plane(new Vector3(0, 0, -1), 0), 100, 0xeeeeee);
     this.ground.visible = false;
@@ -53,67 +51,42 @@ export default class ShareScene extends EventDispatcher<TEventMap> {
     const axesHelper = new AxesHelper(100);
     axesHelper.visible = false;
 
-    this.scene.add(this.pointsGroup, this.annotations3D, this.ground, this.originHelper, axesHelper);
-
-    const stats = new Stats();
-    stats.dom.style.left = 'auto';
-    stats.dom.style.right = '200px';
-    stats.dom.style.top = '10px';
-    document.body.appendChild(stats.dom);
-    const frame = () => {
-      stats.update();
-      requestAnimationFrame(frame);
-    };
-    frame();
+    this.scene.add(this.pointsGroup, this.boxes.line, this.ground, this.originHelper, axesHelper);
   }
 
-  addObject(...objects: Box3D[]) {
-    objects.forEach((obj) => {
-      if (!this.annotations3D.children.includes(obj)) this.annotations3D.add(obj);
-    });
-    this.dispatchEvent({ type: 'addObject', objects });
+  addObject(objects: InstanceAttributes[]) {
+    this.boxes.upsert(objects);
+    this.dispatchEvent({ type: 'addObject', ids: objects.map((item) => item.id) });
     this.render();
   }
 
-  removeObject(...objects: Box3D[]) {
+  removeObject(ids: string[]) {
     let selectFlag = false;
-    objects.forEach((obj) => {
-      this.annotations3D.remove(obj);
-      if (this.selectionMap.has(obj.uuid)) {
+    ids.forEach((id) => {
+      this.boxes.remove([id]);
+      if (this.selection.has(id)) {
         selectFlag = true;
-        this.selectionMap.delete(obj.uuid);
+        this.selection.delete(id);
       }
     });
-    this.dispatchEvent({ type: 'removeObject', objects });
+    this.dispatchEvent({ type: 'removeObject', ids });
     if (selectFlag) {
-      const selection = this.selection.filter((item) => this.selectionMap.has(item.uuid));
-      this.selectObject(...selection);
+      this.selectObject(Array.from(this.selection.values()));
     }
     this.render();
   }
 
-  selectObject(...objects: Box3D[]) {
-    const preSelection = this.selection;
-    this.selection = objects;
-    this.selectionMap.clear();
-    this.selection.forEach((obj) => {
-      this.selectionMap.set(obj.uuid, obj);
+  selectObject(ids: string[] = []) {
+    this.selection.clear();
+    ids.forEach((id) => {
+      this.selection.add(id);
     });
-    this.dispatchEvent({ type: 'select', selection: this.selection, preSelection });
-  }
-
-  selectObjectByUUID(...uuids: string[]) {
-    const selection = this.getAnnotations3D().filter((child) => uuids.includes(child.uuid));
-    this.selectObject(...selection);
-  }
-
-  getAnnotations3D() {
-    return this.annotations3D.children as Box3D[];
+    this.dispatchEvent({ type: 'select', ids });
   }
 
   clearData() {
     this.selectObject();
-    this.annotations3D.clear();
+    this.boxes.clear();
     this.dispatchEvent({ type: 'clearData' });
     this.render();
   }
@@ -166,5 +139,15 @@ export default class ShareScene extends EventDispatcher<TEventMap> {
       this.dispatchEvent({ type: 'renderAfter' });
       this._renderTimer = 0;
     });
+  }
+
+  dispose() {
+    this.boxes.dispose();
+    this.selection.clear();
+    this.views.forEach((view) => {
+      view.dispose();
+    });
+    this.views.length = 0;
+    this.material.dispose();
   }
 }

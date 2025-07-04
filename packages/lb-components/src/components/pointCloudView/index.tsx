@@ -145,22 +145,23 @@ const PointCloudView: React.FC<IProps> = (props) => {
             color.g = Number(rgba[1]) / 255;
             color.b = Number(rgba[2]) / 255;
           }
-          return createBox3D(
+          return createBox3D({
+            id: box.id,
             center,
-            {
+            size: {
               x: width,
               y: height,
               z: depth,
             },
-            {
+            rotation: {
               x: 0,
               y: 0,
               z: rotation,
             },
             color,
-          );
+          });
         });
-        shareScene.addObject(...boxes);
+        shareScene.addObject(boxes);
       }
     }
     return () => {

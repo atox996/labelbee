@@ -125,7 +125,7 @@ const PointCloud3D: React.FC<IA2MapStateProps> = ({
   const viewer = useRef<PerspectiveViewer>();
   useEffect(() => {
     if (ref.current) {
-      viewer.current = new PerspectiveViewer(ref.current!, shareScene, { name: '3D' });
+      viewer.current = new PerspectiveViewer(ref.current, shareScene, { name: '3D' });
     }
     return () => {
       viewer.current?.dispose();

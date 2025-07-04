@@ -1,10 +1,8 @@
 import { PerspectiveCamera, Vector3 } from 'three';
 
+import type { ActionName } from '../actions';
 import type ShareScene from '../common/ShareScene';
 import Viewer from './Viewer';
-import { ActionName } from '../actions';
-import Box3D from '../common/objects/Box3D';
-import { createTween } from '../utils/tween';
 
 interface ViewerConfig {
   name?: string;
@@ -13,9 +11,6 @@ interface ViewerConfig {
 
 const _vec3a = new Vector3();
 const _vec3b = new Vector3();
-const _vec3c = new Vector3();
-
-const tween = createTween();
 
 const DEFAULT_ACTIONS: ActionName[] = ['Select', 'OrbitControls'];
 
@@ -29,19 +24,26 @@ export default class PerspectiveViewer extends Viewer {
     this.camera.position.set(-0.01, 0, 100);
 
     this.setActions(...(config.actions || DEFAULT_ACTIONS));
+    this.initEvent();
   }
 
-  initEvent(): void {
-    this.shareScene.addEventListener('select', ({ selection }) => {
-      const object = selection.find((o) => o instanceof Box3D);
+  private _onSelect = () => {
+    const instanceId = [...this.shareScene.selection.values()].at(-1);
 
-      if (object) {
-        if (this.autoFocus) this.focus(object);
-      } else {
-        this.focusObject = undefined;
-      }
-      this.render();
-    });
+    if (instanceId) {
+      if (this.autoFocus) this.focus(instanceId);
+    } else {
+      this.focusInstanceId = undefined;
+    }
+    this.render();
+  };
+
+  initEvent(): void {
+    this.shareScene.addEventListener('select', this._onSelect);
+  }
+
+  disposeEvent(): void {
+    this.shareScene.removeEventListener('select', this._onSelect);
   }
 
   resize(): void {
@@ -50,31 +52,25 @@ export default class PerspectiveViewer extends Viewer {
     super.resize();
   }
 
-  focus(object = this.focusObject): void {
-    if (!object) return;
-    this.focusObject = object;
+  focus(instanceId = this.focusInstanceId): void {
+    if (!instanceId) return;
+    this.focusInstanceId = instanceId;
 
-    object.getWorldPosition(_vec3a);
+    _vec3a.copy(this.shareScene.boxes.getWorldPosition(instanceId));
 
     const action = this.getAction('OrbitControls');
     if (action) {
       _vec3b.copy(action.controller.target);
+      action.focus(_vec3a);
     } else {
       _vec3b.setScalar(0);
+      this.camera.lookAt(_vec3a);
     }
-    _vec3c.subVectors(this.camera.position, _vec3b).add(_vec3a);
+    _vec3b.subVectors(this.camera.position, _vec3b).add(_vec3a);
 
-    tween.start({
+    this.tween({
       from: this.camera.position,
-      to: _vec3c,
-      duration: 200,
-      onUpdate: (_, elapsed) => {
-        if (action) {
-          _vec3b.copy(_vec3a).multiplyScalar(elapsed);
-          action.focus(_vec3b);
-        }
-        this.render();
-      },
+      to: _vec3b,
     });
   }
 

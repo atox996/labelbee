@@ -15,12 +15,13 @@ export default class OrbitControlsAction extends Action {
     this.controller.addEventListener('change', () => viewer.render());
   }
 
-  focus(pos?: Vector3) {
+  focus(pos?: Vector3, forceUpdate = false) {
     if (pos) {
       this.controller.target.copy(pos);
     } else {
       this.controller.target.setScalar(0);
     }
+    if (forceUpdate) this.controller.update();
   }
 
   toggle(enabled?: boolean): void {

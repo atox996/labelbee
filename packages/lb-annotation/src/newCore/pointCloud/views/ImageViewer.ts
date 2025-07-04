@@ -34,19 +34,20 @@ export default class ImageViewer extends Viewer {
   }
 
   initEvent(): void {
-    console.log('initEvent');
+    // TODO: 添加事件
+  }
+
+  disposeEvent(): void {
+    // TODO: 移除事件
   }
 
   resize(): void {
     super.resize();
   }
 
-  focus(object = this.focusObject): void {
-    const action = super.getAction('OrbitControls');
-    if (action) action.focus(object?.position);
-
-    this.focusObject = object;
-    if (!object) return;
+  focus(instanceId = this.focusInstanceId): void {
+    this.focusInstanceId = instanceId;
+    // if (!instanceId) return;
     // TODO: 聚焦相机到元素
   }
 

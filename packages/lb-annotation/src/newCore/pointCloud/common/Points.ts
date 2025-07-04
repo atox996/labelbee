@@ -1,7 +1,7 @@
 import {
   BufferGeometry,
   Float32BufferAttribute,
-  Int32BufferAttribute,
+  // Int32BufferAttribute,
   type Object3DEventMap,
   Points as BasicPoints,
 } from 'three';
@@ -21,13 +21,16 @@ export interface PointsData {
   label?: ArrayLike<number>;
 }
 
-function createGeometry({ position = [], normal = [], color = [], intensity = [], label = [] }: PointsData = {}) {
+function createGeometry({
+  position = [],
+}: // normal = [], color = [], intensity = [], label = []
+PointsData = {}) {
   const geometry = new BufferGeometry();
   if (position.length > 0) geometry.setAttribute('position', new Float32BufferAttribute(position, 3));
-  if (normal.length > 0) geometry.setAttribute('normal', new Float32BufferAttribute(normal, 3));
-  if (color.length > 0) geometry.setAttribute('color', new Float32BufferAttribute(color, 3));
-  if (intensity.length > 0) geometry.setAttribute('intensity', new Float32BufferAttribute(intensity, 1));
-  if (label.length > 0) geometry.setAttribute('label', new Int32BufferAttribute(label, 1));
+  // if (normal.length > 0) geometry.setAttribute("normal", new Float32BufferAttribute(normal, 3));
+  // if (color.length > 0) geometry.setAttribute("color", new Float32BufferAttribute(color, 3));
+  // if (intensity.length > 0) geometry.setAttribute("intensity", new Float32BufferAttribute(intensity, 1));
+  // if (label.length > 0) geometry.setAttribute("label", new Int32BufferAttribute(label, 1));
 
   geometry.computeBoundingSphere();
 

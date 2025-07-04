@@ -119,4 +119,9 @@ export default class PointsMaterial extends RawShaderMaterial {
 
     this.needsUpdate = true;
   }
+
+  dispose() {
+    this.setGradientTexture(null);
+    super.dispose();
+  }
 }

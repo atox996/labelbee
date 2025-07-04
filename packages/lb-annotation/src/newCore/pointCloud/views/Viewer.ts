@@ -1,12 +1,21 @@
-import { Camera, EventDispatcher, MathUtils, WebGLRenderer } from 'three';
-
 import { debounce } from 'lodash';
+import { Camera, EventDispatcher, MathUtils, Vector3, WebGLRenderer } from 'three';
+import { Tween } from 'three/examples/jsm/libs/tween.module.js';
+
+import { type ActionInstanceMap, type ActionName, Actions } from '../actions';
 import type ShareScene from '../common/ShareScene';
-import { ActionInstanceMap, ActionName, Actions } from '../actions';
 
 interface TEventMap {
   renderBefore: EmptyObject;
   renderAfter: EmptyObject;
+}
+
+interface TweenOptions<T extends Vector3 = Vector3> {
+  from: T;
+  to: T;
+  duration?: number;
+  onUpdate?: (object: T, elapsed: number) => void;
+  onComplete?: (object: T) => void;
 }
 
 export default abstract class Viewer extends EventDispatcher<TEventMap> {
@@ -20,7 +29,9 @@ export default abstract class Viewer extends EventDispatcher<TEventMap> {
 
   autoFocus = true;
 
-  focusObject?: Box3DLike;
+  focusInstanceId?: string;
+
+  actionMap = new Map<ActionName, ActionInstanceMap[ActionName]>();
 
   get width() {
     return this.container.clientWidth || 10;
@@ -34,8 +45,6 @@ export default abstract class Viewer extends EventDispatcher<TEventMap> {
     return this.width / this.height;
   }
 
-  actionMap = new Map<ActionName, ActionInstanceMap[ActionName]>();
-
   abstract camera: Camera;
 
   readonly id: string;
@@ -45,6 +54,8 @@ export default abstract class Viewer extends EventDispatcher<TEventMap> {
   private _resizeObserver: ResizeObserver;
 
   private _renderTimer = 0;
+
+  private _tween: Tween<Vector3> | null = null;
 
   constructor(container: HTMLElement, shareScene: ShareScene, name = '') {
     super();
@@ -68,8 +79,6 @@ export default abstract class Viewer extends EventDispatcher<TEventMap> {
       }, 100),
     );
     this._resizeObserver.observe(this.container);
-
-    this.initEvent();
   }
 
   resize() {
@@ -95,7 +104,12 @@ export default abstract class Viewer extends EventDispatcher<TEventMap> {
 
   dispose() {
     this.enabled = false;
-    this.camera.removeFromParent();
+    // Cancel any pending render
+    if (this._renderTimer) {
+      cancelAnimationFrame(this._renderTimer);
+      this._renderTimer = 0;
+    }
+    this.disposeEvent();
     this.shareScene.removeView(this);
     this.actionMap.forEach((action) => {
       action.dispose();
@@ -104,6 +118,8 @@ export default abstract class Viewer extends EventDispatcher<TEventMap> {
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this._resizeObserver.disconnect();
+    this._tween?.stop();
+    this._tween = null;
   }
 
   getAction<T extends ActionName>(name: T) {
@@ -146,9 +162,37 @@ export default abstract class Viewer extends EventDispatcher<TEventMap> {
     }
   }
 
+  tween(options: TweenOptions) {
+    const { from, to, duration = 200, onUpdate, onComplete } = options;
+    if (this._tween) this._tween.stop();
+    this._tween = new Tween(from)
+      .to(to, duration)
+      .onUpdate((object, elapsed) => {
+        onUpdate?.(object, elapsed);
+        this.render();
+      })
+      .onComplete((object) => {
+        onComplete?.(object);
+        this._tween?.stop();
+        this._tween = null;
+      })
+      .start();
+
+    this._tweenFrame();
+  }
+
+  private _tweenFrame = (time?: number) => {
+    if (this._tween) {
+      this._tween.update(time);
+      requestAnimationFrame(this._tweenFrame);
+    }
+  };
+
   abstract initEvent(): void;
 
-  abstract focus(object?: Box3DLike): void;
+  abstract disposeEvent(): void;
+
+  abstract focus(instanceId?: string): void;
 
   abstract renderFrame(): void;
 }

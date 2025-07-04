@@ -1,6 +1,6 @@
 import { Raycaster, Vector2 } from 'three';
+
 import Action from './Action';
-import Box3D from '../common/objects/Box3D';
 
 const _downPos = new Vector2();
 const _upPos = new Vector2();
@@ -19,9 +19,9 @@ export default class SelectAction extends Action {
     if (!this.enabled) return;
     const distance = _upPos.set(event.offsetX, event.offsetY).distanceTo(_downPos);
     if (this._mouseDown && distance < 10) {
-      const object = this.getObject(event);
-      if (object) {
-        this.viewer.shareScene.selectObject(object);
+      const instanceId = this.getInstanceId(event);
+      if (instanceId) {
+        this.viewer.shareScene.selectObject([instanceId]);
       }
     }
     this._mouseDown = false;
@@ -40,16 +40,17 @@ export default class SelectAction extends Action {
     container.removeEventListener('pointerup', this.onPointerUp);
   }
 
-  getObject(event: MouseEvent) {
+  getInstanceId(event: PointerEvent) {
     this.updateProjectPos(event);
-    const annotate3D = this.viewer.shareScene.getAnnotations3D();
-
+    const { boxes } = this.viewer.shareScene;
     _raycaster.setFromCamera(_upPos, this.viewer.camera);
-    const intersects = _raycaster.intersectObjects<Box3D>(annotate3D);
-    if (intersects.length > 0) return intersects[0].object;
+    const intersects = _raycaster.intersectObjects([boxes.line], false);
+    if (intersects.length > 0 && intersects[0].instanceId !== undefined) {
+      return boxes.getInstanceIdFromRenderId(intersects[0].instanceId);
+    }
   }
 
-  updateProjectPos(event: MouseEvent) {
+  updateProjectPos(event: PointerEvent) {
     const x = (event.offsetX / this.viewer.width) * 2 - 1;
     const y = (-event.offsetY / this.viewer.height) * 2 + 1;
     _upPos.set(x, y);
