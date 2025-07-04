@@ -146,6 +146,13 @@ export default class InstancedLineManager<T extends EmptyObject = EmptyObject> {
   }
 
   /**
+   * 通过业务实例ID获取渲染实例ID
+   */
+  getRenderIdFromInstanceId(instanceId: string): number | undefined {
+    return this._instanceIndices.get(instanceId);
+  }
+
+  /**
    * 获取实例对应的虚拟线条对象
    * @param instanceId 实例ID
    * @returns {LineSegments} 虚拟线条对象

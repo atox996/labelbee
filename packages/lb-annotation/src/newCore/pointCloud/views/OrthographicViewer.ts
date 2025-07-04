@@ -1,4 +1,4 @@
-import { Box3, OrthographicCamera, Vector3 } from 'three';
+import { Box3, Color, OrthographicCamera, Vector3 } from 'three';
 
 import type { ActionName } from '../actions';
 import type ShareScene from '../common/ShareScene';
@@ -156,15 +156,18 @@ export default class OrthographicViewer extends Viewer {
     this.camera.right = cameraW / 2;
     this.camera.top = cameraH / 2;
     this.camera.bottom = -cameraH / 2;
-    this.camera.near = 0;
-    this.camera.far = projectRect.max.z - projectRect.min.z;
+    // 前后留一点点空间, 避免边界对象被裁剪
+    this.camera.near = -0.01;
+    this.camera.far = projectRect.max.z - projectRect.min.z + 0.01;
     this.camera.updateProjectionMatrix();
   }
 
   renderFrame(): void {
     const { pointsGroup, material } = this.shareScene;
-    // TODO: 点云颜色
-
+    const oldColor = material.uniforms.color.value;
+    material.uniforms.color.value = new Color(0xffffff);
+    material.defines.USE_GRADIENT_TEXTURE = false;
+    material.defines.USE_COLOR = true;
     if (this.focusInstanceId) {
       const oldDepthTest = material.depthTest;
       material.depthTest = false;
@@ -175,6 +178,7 @@ export default class OrthographicViewer extends Viewer {
     } else {
       this.renderer.render(pointsGroup, this.camera);
     }
+    material.uniforms.color.value = oldColor;
     this.updateProjectRect();
   }
 }

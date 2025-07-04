@@ -73,7 +73,7 @@ export default class PointsMaterial extends RawShaderMaterial {
       /** 透明度 */
       opacity: makeUniform('f', 1.0),
       /** 纯色 */
-      color: makeNullableUniform('v3', null),
+      color: makeNullableUniform('c', null),
       /** 渐变纹理: 优先级高于color */
       gradientTexture: makeNullableUniform('t', null),
       gradientRange: makeNullableUniform('v2', new Vector2(-7, 3)),

@@ -123,9 +123,17 @@ const PointCloud3D: React.FC<IA2MapStateProps> = ({
   const { shareScene } = useContext(PointCloudContext);
 
   const viewer = useRef<PerspectiveViewer>();
+
+  const pointSize = useRef(1);
   useEffect(() => {
     if (ref.current) {
       viewer.current = new PerspectiveViewer(ref.current, shareScene, { name: '3D' });
+      viewer.current.addEventListener('renderBefore', () => {
+        shareScene.material.uniforms.size.value = pointSize.current;
+      });
+      viewer.current.addEventListener('renderAfter', () => {
+        shareScene.material.uniforms.size.value = 1;
+      });
     }
     return () => {
       viewer.current?.dispose();
@@ -136,7 +144,8 @@ const PointCloud3D: React.FC<IA2MapStateProps> = ({
     <>
       <PointCloudSizeSlider
         onChange={(v: number) => {
-          console.log('v', v);
+          pointSize.current = v;
+          viewer.current?.render();
         }}
       />
       <span style={{ marginRight: 8 }}>{t('ShowArrows')}</span>

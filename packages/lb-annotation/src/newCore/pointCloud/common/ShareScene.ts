@@ -1,4 +1,4 @@
-import { AxesHelper, Box3, Box3Helper, EventDispatcher, Group, Plane, PlaneHelper, Scene, Vector3 } from 'three';
+import { AxesHelper, Box3, Box3Helper, Color, EventDispatcher, Group, Plane, PlaneHelper, Scene, Vector3 } from 'three';
 
 import type Viewer from '../views/Viewer';
 import Boxes from './objects/Boxes';
@@ -82,6 +82,7 @@ export default class ShareScene extends EventDispatcher<TEventMap> {
       this.selection.add(id);
     });
     this.dispatchEvent({ type: 'select', ids });
+    this.render();
   }
 
   clearData() {
@@ -133,12 +134,32 @@ export default class ShareScene extends EventDispatcher<TEventMap> {
     if (this._renderTimer) return;
     this._renderTimer = requestAnimationFrame(() => {
       this.dispatchEvent({ type: 'renderBefore' });
+      this.updateMaterial();
       this.views.forEach((view) => {
         view.render();
       });
       this.dispatchEvent({ type: 'renderAfter' });
       this._renderTimer = 0;
     });
+  }
+
+  updateMaterial() {
+    const lastFocusInstanceId = Array.from(this.selection.values()).at(-1);
+    if (lastFocusInstanceId) {
+      const index = this.boxes.getRenderIdFromInstanceId(lastFocusInstanceId);
+      const color = new Color(0xffffff);
+      if (index !== undefined) {
+        this.boxes.line.getColorAt(index, color);
+      }
+      const bbox = this.boxes.getGeometryBoundingBox();
+      const matrixWorld = this.boxes.getWorldMatrix(lastFocusInstanceId);
+      this.material.uniforms.highlightBox.value = {
+        min: bbox.min,
+        max: bbox.max,
+        color,
+        inverseMatrix: matrixWorld.invert(),
+      };
+    }
   }
 
   dispose() {
